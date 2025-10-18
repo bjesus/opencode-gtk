@@ -615,17 +615,19 @@ impl Window {
                     Ok(sessions) => {
                         drop(client);
                         
-                        // Refresh the UI with sessions
-                        session_list_clone.borrow_mut().refresh_sessions();
+                        // Store the first session ID
+                        let first_session_id = sessions.first().map(|s| s.id.clone());
                         
-                        // Auto-load the first (most recent) session
-                        if let Some(first_session) = sessions.first() {
-                            session_list_clone.borrow_mut().select_session(&first_session.id);
+                        // Set sessions synchronously (this updates the internal list)
+                        session_list_clone.borrow_mut().set_sessions(sessions);
+                        
+                        // Now auto-load the first (most recent) session
+                        if let Some(session_id) = first_session_id {
+                            session_list_clone.borrow_mut().select_session(&session_id);
                         }
                     }
                     Err(e) => {
                         eprintln!("Failed to load sessions: {}", e);
-                        session_list_clone.borrow_mut().refresh_sessions();
                     }
                 }
             });
@@ -635,6 +637,8 @@ impl Window {
         let api_client_clone = api_client.clone();
         let chat_view_clone = chat_view.clone();
         let current_session_id_clone = current_session_id.clone();
+        let session_list_for_events = session_list.clone();
+        let window_title_for_events = window_title.clone();
         
         glib::MainContext::default().spawn_local(async move {
             use futures::StreamExt;
@@ -682,12 +686,28 @@ impl Window {
                                                 let api_client = api_client_clone.clone();
                                                 let chat_view = chat_view_clone.clone();
                                                 let session_id = session_id.to_string();
+                                                let session_list = session_list_for_events.clone();
+                                                let window_title = window_title_for_events.clone();
                                                 
                                                 glib::MainContext::default().spawn_local(async move {
                                                     let client = api_client.lock().await;
+                                                    
+                                                    // Fetch updated messages
                                                     if let Ok(messages) = client.get_messages(&session_id).await {
-                                                        drop(client);
                                                         chat_view.borrow().set_messages(messages);
+                                                    }
+                                                    
+                                                    // Refresh sessions list to get updated title
+                                                    if let Ok(sessions) = client.get_sessions().await {
+                                                        drop(client);
+                                                        session_list.borrow_mut().set_sessions(sessions.clone());
+                                                        
+                                                        // Update window title with new session name
+                                                        if let Some(session) = sessions.iter().find(|s| s.id == session_id) {
+                                                            if let Some(title) = &session.title {
+                                                                window_title.set_title(&format!("{} - OpenCode", title));
+                                                            }
+                                                        }
                                                     }
                                                 });
                                             }

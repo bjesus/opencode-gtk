@@ -99,6 +99,33 @@ impl SessionList {
             .and_then(|s| s.title.clone())
     }
 
+    pub fn set_sessions(&mut self, fetched_sessions: Vec<Session>) {
+        let list_box = self.list_box.clone();
+        
+        while let Some(child) = list_box.first_child() {
+            list_box.remove(&child);
+        }
+
+        *self.sessions.borrow_mut() = fetched_sessions.clone();
+
+        for session in fetched_sessions {
+            let row_box = GtkBox::new(Orientation::Horizontal, 8);
+            row_box.set_margin_start(12);
+            row_box.set_margin_end(12);
+            row_box.set_margin_top(8);
+            row_box.set_margin_bottom(8);
+
+            let label = Label::new(Some(&session.title.unwrap_or_else(|| "Untitled".to_string())));
+            label.set_halign(gtk4::Align::Start);
+            label.set_hexpand(true);
+            label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+
+            row_box.append(&label);
+            
+            list_box.append(&row_box);
+        }
+    }
+
     pub fn refresh_sessions(&mut self) {
         let api_client = self.api_client.clone();
         let list_box = self.list_box.clone();
