@@ -2,6 +2,8 @@
 
 A modern GTK4/libadwaita desktop client for OpenCode.
 
+<img width="2666" height="1844" alt="image" src="https://github.com/user-attachments/assets/428f6b48-021d-4f84-83f8-67975a9cb161" />
+
 ## Features
 
 - Session management (create, list, delete, fork, rename)
