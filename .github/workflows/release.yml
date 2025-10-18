@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-4-dev libadwaita-1-dev build-essential
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Build
+      run: cargo build --release --verbose
+    
+    - name: Strip binary
+      run: strip target/release/opencode-gtk
+    
+    - name: Compress binary
+      run: |
+        cd target/release
+        tar czf opencode-gtk-linux-x86_64.tar.gz opencode-gtk
+    
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./target/release/opencode-gtk-linux-x86_64.tar.gz
+        asset_name: opencode-gtk-linux-x86_64.tar.gz
+        asset_content_type: application/gzip
