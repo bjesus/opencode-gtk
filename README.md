@@ -12,7 +12,30 @@ A modern GTK4/libadwaita desktop client for OpenCode.
 - Show message information like tokens count, costs etc
 - Responsive interface
 
-## Requirements
+## Prerequisites
+
+You need to have [OpenCode](https://github.com/sst/opencode) installed and configured before using this client.
+
+## Installation
+
+Download the latest binary from the [releases page](https://github.com/bjesus/opencode-gtk/releases).
+
+## Running
+
+OpenCode GTK will automatically launch `opencode serve` unless you specify a server using the `--server` flag.
+
+```bash
+./opencode-gtk
+```
+
+Connect to a custom server:
+```bash
+./opencode-gtk --server 127.0.0.1:42165
+```
+
+## Manual Compilation
+
+### Requirements
 
 - Rust toolchain
 - GTK4 development libraries
@@ -35,15 +58,13 @@ sudo apt install libgtk-4-dev libadwaita-1-dev
 sudo pacman -S gtk4 libadwaita
 ```
 
-## Building
+### Building
 
 ```bash
 cargo build
 ```
 
-## Running
-
-OpenCode GTK will automatically launch `opencode serve` unless you specify a server using the `--server` flag.
+### Running
 
 ```bash
 cargo run
