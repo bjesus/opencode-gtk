@@ -7,8 +7,9 @@ use std::rc::Rc;
 use crate::api::{Session, SharedApiClient};
 
 pub struct SessionList {
-    widget: GtkBox,
+    widget: ScrolledWindow,
     list_box: ListBox,
+    new_button: Button,
     api_client: SharedApiClient,
     session_selected_callback: Rc<RefCell<Option<Box<dyn Fn(String)>>>>,
     new_session_callback: Rc<RefCell<Option<Box<dyn Fn()>>>>,
@@ -17,39 +18,19 @@ pub struct SessionList {
 
 impl SessionList {
     pub fn new(api_client: SharedApiClient) -> Self {
-        let widget = GtkBox::new(Orientation::Vertical, 0);
-        widget.set_width_request(250);
-
         let new_button = Button::builder()
             .icon_name("list-add-symbolic")
             .tooltip_text("New Session")
             .build();
         new_button.add_css_class("flat");
-        
-        let header_box = GtkBox::new(Orientation::Horizontal, 6);
-        header_box.set_margin_start(12);
-        header_box.set_margin_end(12);
-        header_box.set_margin_top(12);
-        header_box.set_margin_bottom(12);
-        
-        let title_label = Label::new(Some("Sessions"));
-        title_label.add_css_class("title-4");
-        title_label.set_hexpand(true);
-        title_label.set_halign(gtk4::Align::Start);
-        
-        header_box.append(&title_label);
-        header_box.append(&new_button);
 
         let list_box = ListBox::new();
         list_box.add_css_class("navigation-sidebar");
         
-        let scrolled = ScrolledWindow::builder()
+        let widget = ScrolledWindow::builder()
             .vexpand(true)
             .child(&list_box)
             .build();
-
-        widget.append(&header_box);
-        widget.append(&scrolled);
 
         let session_selected_callback: Rc<RefCell<Option<Box<dyn Fn(String)>>>> = Rc::new(RefCell::new(None));
         let new_session_callback: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::new(RefCell::new(None));
@@ -58,14 +39,12 @@ impl SessionList {
         {
             let session_selected_callback = session_selected_callback.clone();
             let sessions = sessions.clone();
-            list_box.connect_row_selected(move |_, row| {
-                if let Some(row) = row {
-                    let index = row.index() as usize;
-                    let sessions = sessions.borrow();
-                    if let Some(session) = sessions.get(index) {
-                        if let Some(callback) = session_selected_callback.borrow().as_ref() {
-                            callback(session.id.clone());
-                        }
+            list_box.connect_row_activated(move |_, row| {
+                let index = row.index() as usize;
+                let sessions = sessions.borrow();
+                if let Some(session) = sessions.get(index) {
+                    if let Some(callback) = session_selected_callback.borrow().as_ref() {
+                        callback(session.id.clone());
                     }
                 }
             });
@@ -83,6 +62,7 @@ impl SessionList {
         Self {
             widget,
             list_box,
+            new_button,
             api_client,
             session_selected_callback,
             new_session_callback,
@@ -90,8 +70,12 @@ impl SessionList {
         }
     }
 
-    pub fn widget(&self) -> GtkBox {
+    pub fn widget(&self) -> ScrolledWindow {
         self.widget.clone()
+    }
+
+    pub fn new_button(&self) -> Button {
+        self.new_button.clone()
     }
 
     pub fn connect_session_selected<F: Fn(String) + 'static>(&mut self, callback: F) {
@@ -100,6 +84,19 @@ impl SessionList {
 
     pub fn connect_new_session<F: Fn() + 'static>(&mut self, callback: F) {
         *self.new_session_callback.borrow_mut() = Some(Box::new(callback));
+    }
+
+    pub fn select_session(&mut self, session_id: &str) {
+        if let Some(callback) = self.session_selected_callback.borrow().as_ref() {
+            callback(session_id.to_string());
+        }
+    }
+
+    pub fn get_session_title(&self, session_id: &str) -> Option<String> {
+        self.sessions.borrow()
+            .iter()
+            .find(|s| s.id == session_id)
+            .and_then(|s| s.title.clone())
     }
 
     pub fn refresh_sessions(&mut self) {

@@ -1,0 +1,31 @@
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+
+# Backup files
+*.backup
+*.old
+*.original
+*.simple
+
+# Project specific
+context.txt
+plan-simple.txt
