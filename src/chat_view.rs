@@ -10,16 +10,38 @@ use crate::markdown::markdown_to_pango;
 use crate::message_object::MessageObject;
 
 pub struct ChatView {
-    widget: ScrolledWindow,
+    widget: adw::OverlaySplitView,
+    scroll_widget: ScrolledWindow,
     listview: ListView,
     list_store: gio::ListStore,
     thinking_widget: Rc<RefCell<Option<GtkBox>>>,
+    info_sidebar: Rc<RefCell<GtkBox>>,
+    split_view: Rc<RefCell<adw::OverlaySplitView>>,
 }
 
 impl ChatView {
     pub fn new() -> Self {
         let list_store = gio::ListStore::new::<MessageObject>();
         let selection_model = gtk4::NoSelection::new(Some(list_store.clone()));
+        
+        // Info sidebar (initially empty)
+        let info_sidebar = GtkBox::new(Orientation::Vertical, 12);
+        info_sidebar.set_margin_start(12);
+        info_sidebar.set_margin_end(12);
+        info_sidebar.set_margin_top(12);
+        info_sidebar.set_margin_bottom(12);
+
+        // Wrap in OverlaySplitView
+        let widget = adw::OverlaySplitView::builder()
+            .sidebar_position(gtk4::PackType::End)
+            .show_sidebar(false)
+            .collapsed(true)
+            .max_sidebar_width(400.0)
+            .min_sidebar_width(300.0)
+            .build();
+
+        let info_sidebar_rc = Rc::new(RefCell::new(info_sidebar.clone()));
+        let split_view_rc = Rc::new(RefCell::new(widget.clone()));
         
         let factory = SignalListItemFactory::new();
         
@@ -29,6 +51,8 @@ impl ChatView {
             list_item.set_child(Some(&container));
         });
         
+        let info_sidebar_for_factory = info_sidebar_rc.clone();
+        let split_view_for_factory = split_view_rc.clone();
         factory.connect_bind(move |_, list_item| {
             let list_item = list_item.downcast_ref::<gtk4::ListItem>().unwrap();
             let Some(message_obj) = list_item.item().and_downcast::<MessageObject>() else {
@@ -48,7 +72,7 @@ impl ChatView {
             } else if message.info.role == "user" {
                 Self::render_user_message(&container, &message);
             } else if message.info.role == "assistant" {
-                Self::render_assistant_message(&container, &message);
+                Self::render_assistant_message(&container, &message, &info_sidebar_for_factory, &split_view_for_factory);
             }
         });
 
@@ -56,17 +80,24 @@ impl ChatView {
         listview.set_vexpand(true);
         listview.set_hexpand(true);
 
-        let widget = ScrolledWindow::builder()
+        let scroll_widget = ScrolledWindow::builder()
             .vexpand(true)
             .hexpand(true)
             .child(&listview)
             .build();
 
+        // Set content and sidebar on the widget
+        widget.set_content(Some(&scroll_widget));
+        widget.set_sidebar(Some(&info_sidebar));
+
         Self {
             widget,
+            scroll_widget,
             listview,
             list_store,
             thinking_widget: Rc::new(RefCell::new(None)),
+            info_sidebar: info_sidebar_rc,
+            split_view: split_view_rc,
         }
     }
 
@@ -119,7 +150,7 @@ impl ChatView {
         container.append(&message_box);
     }
 
-    fn render_assistant_message(container: &GtkBox, message: &Message) {
+    fn render_assistant_message(container: &GtkBox, message: &Message, info_sidebar: &Rc<RefCell<GtkBox>>, split_view: &Rc<RefCell<adw::OverlaySplitView>>) {
         let message_box = GtkBox::new(Orientation::Vertical, 6);
         message_box.set_margin_top(12);
         message_box.set_margin_bottom(12);
@@ -245,8 +276,10 @@ impl ChatView {
         info_button.add_css_class("flat");
         info_button.set_tooltip_text(Some("Message Info"));
         let message_for_info = message.clone();
+        let info_sidebar_clone = info_sidebar.clone();
+        let split_view_clone = split_view.clone();
         info_button.connect_clicked(move |_| {
-            Self::show_info_dialog(&message_for_info);
+            Self::show_info_sidebar(&message_for_info, &info_sidebar_clone, &split_view_clone);
         });
         button_box.append(&info_button);
 
@@ -322,35 +355,87 @@ impl ChatView {
         dialog.present();
     }
 
-    fn show_info_dialog(message: &Message) {
-        let dialog = adw::MessageDialog::builder()
-            .heading("Message Info")
-            .build();
+    fn show_info_sidebar(message: &Message, sidebar: &Rc<RefCell<GtkBox>>, split_view: &Rc<RefCell<adw::OverlaySplitView>>) {
+        let sidebar_box = sidebar.borrow();
+        
+        // Clear previous content
+        while let Some(child) = sidebar_box.first_child() {
+            sidebar_box.remove(&child);
+        }
 
-        let content_box = GtkBox::new(Orientation::Vertical, 6);
-        content_box.set_margin_start(12);
-        content_box.set_margin_end(12);
-        content_box.set_margin_top(12);
-        content_box.set_margin_bottom(12);
+        // Add close button header
+        let header_box = GtkBox::new(Orientation::Horizontal, 6);
+        header_box.set_margin_bottom(12);
+        
+        let heading = Label::new(Some("Message Info"));
+        heading.add_css_class("title-2");
+        heading.set_hexpand(true);
+        heading.set_halign(gtk4::Align::Start);
+        header_box.append(&heading);
+        
+        let close_button = gtk4::Button::from_icon_name("window-close-symbolic");
+        close_button.add_css_class("flat");
+        let split_view_for_close = split_view.clone();
+        close_button.connect_clicked(move |_| {
+            split_view_for_close.borrow().set_show_sidebar(false);
+        });
+        header_box.append(&close_button);
+        sidebar_box.append(&header_box);
 
-        // IDs Section
-        let ids_label = Label::new(Some("IDs"));
-        ids_label.add_css_class("title-4");
-        ids_label.set_xalign(0.0);
-        content_box.append(&ids_label);
+        let content_box = GtkBox::new(Orientation::Vertical, 12);
 
-        let message_id_label = Label::new(Some(&format!("Message ID: {}", message.info.id)));
-        message_id_label.set_selectable(true);
-        message_id_label.set_xalign(0.0);
-        message_id_label.set_wrap(true);
-        content_box.append(&message_id_label);
+        // Message ID
+        let message_id_title = Label::new(Some("Message ID"));
+        message_id_title.add_css_class("heading");
+        message_id_title.set_xalign(0.0);
+        content_box.append(&message_id_title);
 
+        let message_id_row = GtkBox::new(Orientation::Horizontal, 6);
+        let message_id_value = Label::new(Some(&message.info.id));
+        message_id_value.set_selectable(true);
+        message_id_value.set_xalign(0.0);
+        message_id_value.set_wrap(true);
+        message_id_value.set_hexpand(true);
+        message_id_row.append(&message_id_value);
+
+        let copy_msg_id_button = gtk4::Button::from_icon_name("edit-copy-symbolic");
+        copy_msg_id_button.add_css_class("flat");
+        copy_msg_id_button.set_tooltip_text(Some("Copy"));
+        let msg_id_for_copy = message.info.id.clone();
+        copy_msg_id_button.connect_clicked(move |_| {
+            if let Some(display) = gtk4::gdk::Display::default() {
+                display.clipboard().set_text(&msg_id_for_copy);
+            }
+        });
+        message_id_row.append(&copy_msg_id_button);
+        content_box.append(&message_id_row);
+
+        // Session ID
         if let Some(sid) = &message.info.session_id {
-            let session_id_label = Label::new(Some(&format!("Session ID: {}", sid)));
-            session_id_label.set_selectable(true);
-            session_id_label.set_xalign(0.0);
-            session_id_label.set_wrap(true);
-            content_box.append(&session_id_label);
+            let session_id_title = Label::new(Some("Session ID"));
+            session_id_title.add_css_class("heading");
+            session_id_title.set_xalign(0.0);
+            content_box.append(&session_id_title);
+
+            let session_id_row = GtkBox::new(Orientation::Horizontal, 6);
+            let session_id_value = Label::new(Some(sid));
+            session_id_value.set_selectable(true);
+            session_id_value.set_xalign(0.0);
+            session_id_value.set_wrap(true);
+            session_id_value.set_hexpand(true);
+            session_id_row.append(&session_id_value);
+
+            let copy_sess_id_button = gtk4::Button::from_icon_name("edit-copy-symbolic");
+            copy_sess_id_button.add_css_class("flat");
+            copy_sess_id_button.set_tooltip_text(Some("Copy"));
+            let sess_id_for_copy = sid.clone();
+            copy_sess_id_button.connect_clicked(move |_| {
+                if let Some(display) = gtk4::gdk::Display::default() {
+                    display.clipboard().set_text(&sess_id_for_copy);
+                }
+            });
+            session_id_row.append(&copy_sess_id_button);
+            content_box.append(&session_id_row);
         }
 
         // Model Section
@@ -405,12 +490,11 @@ impl ChatView {
             content_box.append(&root_label);
         }
 
-        // Tokens & Cost Section
+        // Usage Section
         if message.info.tokens.is_some() || message.info.cost.is_some() {
-            let tokens_label = Label::new(Some("Tokens & Cost"));
+            let tokens_label = Label::new(Some("Usage"));
             tokens_label.add_css_class("title-4");
             tokens_label.set_xalign(0.0);
-            tokens_label.set_margin_top(8);
             content_box.append(&tokens_label);
 
             if let Some(cost) = message.info.cost {
@@ -456,13 +540,14 @@ impl ChatView {
             }
         }
 
-        dialog.set_extra_child(Some(&content_box));
-        dialog.add_response("close", "Close");
-        dialog.set_default_response(Some("close"));
-        dialog.present();
+        sidebar_box.append(&content_box);
+        drop(sidebar_box);
+        
+        // Show the sidebar
+        split_view.borrow().set_show_sidebar(true);
     }
 
-    pub fn widget(&self) -> ScrolledWindow {
+    pub fn widget(&self) -> adw::OverlaySplitView {
         self.widget.clone()
     }
 
