@@ -1,6 +1,14 @@
 # OpenCode GTK
 
-A minimal GTK4/libadwaita desktop client for OpenCode.
+A modern GTK4/libadwaita desktop client for OpenCode.
+
+## Features
+
+- Session management (create, list, delete, fork, rename)
+- Real-time chat with streaming responses via SSE
+- Model and Agent selector
+- Show message information like tokens count, costs etc
+- Responsive interface
 
 ## Requirements
 
@@ -33,9 +41,8 @@ cargo build
 
 ## Running
 
-Make sure the OpenCode server is running first. Then start the GTK client:
+OpenCode GTK will automatically launch `opencode serve` unless you specify a server using the `--server` flag.
 
-By default, connects to OpenCode on `localhost:5173`:
 ```bash
 cargo run
 ```
@@ -44,16 +51,3 @@ Connect to a custom server:
 ```bash
 cargo run -- --server 127.0.0.1:42165
 ```
-
-Or with a full URL:
-```bash
-cargo run -- --server http://192.168.1.100:5173
-```
-
-## Features
-
-- Session management (create, list, delete)
-- Real-time chat with streaming responses via SSE
-- Model selection from available providers
-- Multi-line message input with Ctrl+Enter to send
-- Simple two-pane interface (sessions sidebar + chat view)
