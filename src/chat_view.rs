@@ -84,6 +84,7 @@ impl ChatView {
             .vexpand(true)
             .hexpand(true)
             .child(&listview)
+            .propagate_natural_height(true)
             .build();
 
         // Set content and sidebar on the widget
@@ -156,6 +157,7 @@ impl ChatView {
         message_box.set_margin_bottom(12);
         message_box.set_margin_start(12);
         message_box.set_margin_end(12);
+        message_box.set_hexpand(true);
 
         // Render text parts
         let text: String = message.parts.iter()
@@ -172,6 +174,8 @@ impl ChatView {
             label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
             label.set_xalign(0.0);
             label.set_selectable(true);
+            label.set_max_width_chars(80);
+            label.set_hexpand(true);
             message_box.append(&label);
         }
 
@@ -216,7 +220,7 @@ impl ChatView {
                         let output_view = gtk4::TextView::new();
                         output_view.set_editable(false);
                         output_view.set_cursor_visible(false);
-                        output_view.set_wrap_mode(gtk4::WrapMode::None);
+                        output_view.set_wrap_mode(gtk4::WrapMode::Char);
                         output_view.set_monospace(true);
                         output_view.buffer().set_text(output);
 
@@ -252,6 +256,7 @@ impl ChatView {
         // Copy button
         let copy_button = gtk4::Button::from_icon_name("edit-copy-symbolic");
         copy_button.add_css_class("flat");
+        copy_button.set_opacity(0.5);
         copy_button.set_tooltip_text(Some("Copy"));
         let text_for_copy = text.clone();
         copy_button.connect_clicked(move |_| {
@@ -259,21 +264,47 @@ impl ChatView {
                 display.clipboard().set_text(&text_for_copy);
             }
         });
+        
+        // Hover effect for copy button
+        let hover_controller = gtk4::EventControllerMotion::new();
+        let copy_button_for_enter = copy_button.clone();
+        hover_controller.connect_enter(move |_, _, _| {
+            copy_button_for_enter.set_opacity(1.0);
+        });
+        let copy_button_for_leave = copy_button.clone();
+        hover_controller.connect_leave(move |_| {
+            copy_button_for_leave.set_opacity(0.5);
+        });
+        copy_button.add_controller(hover_controller);
         button_box.append(&copy_button);
 
         // View Source button
         let source_button = gtk4::Button::from_icon_name("document-properties-symbolic");
         source_button.add_css_class("flat");
+        source_button.set_opacity(0.5);
         source_button.set_tooltip_text(Some("View Source"));
         let message_for_source = message.clone();
         source_button.connect_clicked(move |_| {
             Self::show_source_dialog(&message_for_source);
         });
+        
+        // Hover effect for source button
+        let hover_controller = gtk4::EventControllerMotion::new();
+        let source_button_for_enter = source_button.clone();
+        hover_controller.connect_enter(move |_, _, _| {
+            source_button_for_enter.set_opacity(1.0);
+        });
+        let source_button_for_leave = source_button.clone();
+        hover_controller.connect_leave(move |_| {
+            source_button_for_leave.set_opacity(0.5);
+        });
+        source_button.add_controller(hover_controller);
         button_box.append(&source_button);
 
         // Info button
         let info_button = gtk4::Button::from_icon_name("info-outline-symbolic");
         info_button.add_css_class("flat");
+        info_button.set_opacity(0.5);
         info_button.set_tooltip_text(Some("Message Info"));
         let message_for_info = message.clone();
         let info_sidebar_clone = info_sidebar.clone();
@@ -281,6 +312,18 @@ impl ChatView {
         info_button.connect_clicked(move |_| {
             Self::show_info_sidebar(&message_for_info, &info_sidebar_clone, &split_view_clone);
         });
+        
+        // Hover effect for info button
+        let hover_controller = gtk4::EventControllerMotion::new();
+        let info_button_for_enter = info_button.clone();
+        hover_controller.connect_enter(move |_, _, _| {
+            info_button_for_enter.set_opacity(1.0);
+        });
+        let info_button_for_leave = info_button.clone();
+        hover_controller.connect_leave(move |_| {
+            info_button_for_leave.set_opacity(0.5);
+        });
+        info_button.add_controller(hover_controller);
         button_box.append(&info_button);
 
         message_box.append(&button_box);
@@ -553,6 +596,9 @@ impl ChatView {
 
     pub fn set_messages(&self, messages: Vec<Message>) {
         self.list_store.remove_all();
+        
+        // Close info sidebar when switching chats
+        self.widget.set_show_sidebar(false);
         
         for message in messages {
             let message_obj = MessageObject::new(message);

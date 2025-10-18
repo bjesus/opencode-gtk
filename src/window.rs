@@ -59,8 +59,15 @@ impl Window {
         progress_bar.set_halign(gtk4::Align::Fill);
 
         let chat_box = GtkBox::new(Orientation::Vertical, 0);
-        chat_box.append(&chat_view.borrow().widget());
-        chat_box.append(&message_input.borrow().widget());
+        chat_box.set_vexpand(true);
+        
+        let chat_view_widget = chat_view.borrow().widget();
+        chat_view_widget.set_vexpand(true);
+        chat_box.append(&chat_view_widget);
+        
+        let message_input_widget = message_input.borrow().widget();
+        message_input_widget.set_vexpand(false);
+        chat_box.append(&message_input_widget);
 
         let content_box = GtkBox::new(Orientation::Vertical, 0);
         content_box.append(&header_overlay);
